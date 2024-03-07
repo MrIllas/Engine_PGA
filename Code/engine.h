@@ -42,8 +42,36 @@ enum Mode
     Mode_Count
 };
 
+struct VertexV3V2
+{
+    glm::vec3 pos;
+    glm::vec2 uv;
+};
+
+const VertexV3V2 vertices[] =
+{
+    {glm::vec3(-0.5, -0.5, 0.0), glm::vec2(0.0, 0.0)},
+    {glm::vec3(0.5, -0.5, 0.0), glm::vec2(1.0, 0.0)},
+    {glm::vec3(0.5, 0.5, 0.0), glm::vec2(1.0, 1.0)},
+    {glm::vec3(-0.5, 0.5, 0.5), glm::vec2(0.0, 1.0)},
+};
+
+const u16 indicex[] =
+{
+    0, 1, 2,
+    0, 2, 3
+};
+
 struct App
 {
+    /*
+    App() : deltaTime(0.0f),
+        isRunning(true)
+    {
+
+    }
+    */
+
     // Loop
     f32  deltaTime;
     bool isRunning;
@@ -54,6 +82,7 @@ struct App
     // Graphics
     char gpuName[64];
     char openGlVersion[64];
+    std::string openGLDebugInfo;
 
     ivec2 displaySize;
 
@@ -83,6 +112,8 @@ struct App
 
     // VAO object to link our screen filling quad with our textured quad shader
     GLuint vao;
+
+
 };
 
 void Init(App* app);
