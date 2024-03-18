@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MODEL_LOADING_FUNC
+#define MODEL_LOADING_FUNC
 
 #include <assimp/cimport.h>
 #include <assimp/scene.h>
@@ -10,43 +11,21 @@ struct App;
 
 namespace ModelLoader
 {
+    Image LoadImage(const char* filename);
 
-	struct VertexBufferAttribute
-	{
-		u8 location;
-		u8 componentCount;
-		u8 offset;
-	};
+    void FreeImage(Image image);
 
-	struct VertexBufferLayout
-	{
-		std::vector<VertexBufferAttribute> attributes;
-		u8 stride;
-	};
+    GLuint CreateTexture2DFromImage(Image image);
 
-	struct VertexShaderAttribute
-	{
-		u8 location;
-		u8 componentCount;
-	};
+    u32 LoadTexture2D(App* app, const char* filepath);
 
-	struct VertexShaderLayout
-	{
-		std::vector<VertexShaderAttribute> attributes;
-	};
+    void ProcessAssimpMesh(const aiScene* scene, aiMesh* mesh, Mesh* myMesh, u32 baseMeshMaterialIndex, std::vector<u32>& submeshMaterialIndices);
 
-	struct VAO
-	{
-		GLuint handle;
-		GLuint programHandle;
-	};
+    void ProcessAssimpMaterial(App* app, aiMaterial* material, Material& myMaterial, String directory);
 
-	void ProcessAssimpMesh(const aiScene* scene, aiMesh* mesh, Mesh* myMesh, u32 baseMeshMaterialIndex, std::vector<u32>& submeshMaterialIndices);
+    void ProcessAssimpNode(const aiScene* scene, aiNode* node, Mesh* myMesh, u32 baseMeshMaterialIndex, std::vector<u32>& submeshMaterialIndices);
 
-	void ProcessAssimpMaterial(App* app, aiMaterial* material, Material& myMaterial, String directory);
+    u32 LoadModel(App* app, const char* filename);
+}
 
-	void ProcessAssimpNode(const aiScene* scene, aiNode* node, Mesh* myMesh, u32 baseMeshMaterialIndex, std::vector<u32>& submeshMaterialIndices);
-
-	u32 LoadModel(App* app, const char* filename);
-};
-
+#endif

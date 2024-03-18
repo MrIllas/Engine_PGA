@@ -2,7 +2,6 @@
 
 namespace BufferManager
 {
-
     bool IsPowerOf2(u32 value)
     {
         return value && !(value & (value - 1));

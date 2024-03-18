@@ -11,6 +11,8 @@ layout(location = 2) in vec2 aTexCoord;
 //layout(location = 3) in vec3 aTangent;
 //layout(location = 4) in vec3 aBitTangent;
 
+uniform mat4 WVP;
+
 out vec2 vTexCoord;
 
 void main()
@@ -19,7 +21,7 @@ void main()
 
 	float clippingScale = 5.0f;
 
-	gl_Position = vec4(aPosition, clippingScale);
+	gl_Position = WVP * vec4(aPosition, clippingScale);
 
 	gl_Position.z = -gl_Position.z;
 }

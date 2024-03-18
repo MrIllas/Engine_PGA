@@ -31,10 +31,10 @@ GLuint CreateProgramFromSource(String programSource, const char* shaderName)
         programSource.str
     };
     const GLint vertexShaderLengths[] = {
-        (GLint) strlen(versionString),
-        (GLint) strlen(shaderNameDefine),
-        (GLint) strlen(vertexShaderDefine),
-        (GLint) programSource.len
+        (GLint)strlen(versionString),
+        (GLint)strlen(shaderNameDefine),
+        (GLint)strlen(vertexShaderDefine),
+        (GLint)programSource.len
     };
     const GLchar* fragmentShaderSource[] = {
         versionString,
@@ -43,10 +43,10 @@ GLuint CreateProgramFromSource(String programSource, const char* shaderName)
         programSource.str
     };
     const GLint fragmentShaderLengths[] = {
-        (GLint) strlen(versionString),
-        (GLint) strlen(shaderNameDefine),
-        (GLint) strlen(fragmentShaderDefine),
-        (GLint) programSource.len
+        (GLint)strlen(versionString),
+        (GLint)strlen(shaderNameDefine),
+        (GLint)strlen(fragmentShaderDefine),
+        (GLint)programSource.len
     };
 
     GLuint vshader = glCreateShader(GL_VERTEX_SHADER);
@@ -99,158 +99,84 @@ u32 LoadProgram(App* app, const char* filepath, const char* programName)
     program.filepath = filepath;
     program.programName = programName;
     program.lastWriteTimestamp = GetFileLastWriteTimestamp(filepath);
-    
+
     GLint attributeCount = 0;
     glGetProgramiv(program.handle, GL_ACTIVE_ATTRIBUTES, &attributeCount);
 
-    for (GLuint i = 0; i < attributeCount; ++i)
+    for (GLuint i = 0; i < attributeCount; i++)
     {
         GLsizei length = 0;
         GLint size = 0;
         GLenum type = 0;
         GLchar name[256];
-        glGetActiveAttrib(program.handle, i, ARRAY_COUNT(name), &length, &size, &type, name);
+        glGetActiveAttrib(program.handle, i,
+            ARRAY_COUNT(name),
+            &length,
+            &size,
+            &type,
+            name);
 
         u8 location = glGetAttribLocation(program.handle, name);
-        program.shaderLayout.attributes.push_back(ModelLoader::VertexShaderAttribute{location, (u8)size});
+        program.shaderLayout.attributes.push_back(VertexShaderAttribute{ location, (u8)size });
     }
-    
+
     app->programs.push_back(program);
 
     return app->programs.size() - 1;
 }
 
-Image LoadImage(const char* filename)
-{
-    Image img = {};
-    stbi_set_flip_vertically_on_load(true);
-    img.pixels = stbi_load(filename, &img.size.x, &img.size.y, &img.nchannels, 0);
-    if (img.pixels)
-    {
-        img.stride = img.size.x * img.nchannels;
-    }
-    else
-    {
-        ELOG("Could not open file %s", filename);
-    }
-    return img;
-}
-
-void FreeImage(Image image)
-{
-    stbi_image_free(image.pixels);
-}
-
-GLuint CreateTexture2DFromImage(Image image)
-{
-    GLenum internalFormat = GL_RGB8;
-    GLenum dataFormat     = GL_RGB;
-    GLenum dataType       = GL_UNSIGNED_BYTE;
-
-    switch (image.nchannels)
-    {
-        case 3: dataFormat = GL_RGB; internalFormat = GL_RGB8; break;
-        case 4: dataFormat = GL_RGBA; internalFormat = GL_RGBA8; break;
-        default: ELOG("LoadTexture2D() - Unsupported number of channels");
-    }
-
-    GLuint texHandle;
-    glGenTextures(1, &texHandle);
-    glBindTexture(GL_TEXTURE_2D, texHandle);
-    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, image.size.x, image.size.y, 0, dataFormat, dataType, image.pixels);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    return texHandle;
-}
-
-u32 LoadTexture2D(App* app, const char* filepath)
-{
-    for (u32 texIdx = 0; texIdx < app->textures.size(); ++texIdx)
-        if (app->textures[texIdx].filepath == filepath)
-            return texIdx;
-
-    Image image = LoadImage(filepath);
-
-    if (image.pixels)
-    {
-        Texture tex = {};
-        tex.handle = CreateTexture2DFromImage(image);
-        tex.filepath = filepath;
-
-        u32 texIdx = app->textures.size();
-        app->textures.push_back(tex);
-
-        FreeImage(image);
-        return texIdx;
-    }
-    else
-    {
-        return UINT32_MAX;
-    }
-}
-
 GLuint FindVAO(Mesh& mesh, u32 submeshIndex, const Program& program)
 {
-    GLuint toReturn = 0;
-    SubMesh& submesh = mesh.submeshes[submeshIndex];
+    GLuint ReturnValue = 0;
 
-    // Try finding a vao for this submesh/program
-    for (u32 i = 0; i < (u32)submesh.vaos.size(); ++i)
+    SubMesh& Submesh = mesh.submeshes[submeshIndex];
+    for (u32 i = 0; i < (u32)Submesh.vaos.size(); ++i)
     {
-        if (submesh.vaos[i].programHandle == program.handle)
+        if (Submesh.vaos[i].programHandle == program.handle)
         {
-            toReturn = submesh.vaos[i].handle;
+            ReturnValue = Submesh.vaos[i].handle;
             break;
         }
     }
 
-        if (toReturn == 0)
+    if (ReturnValue == 0)
+    {
+        glGenVertexArrays(1, &ReturnValue);
+        glBindVertexArray(ReturnValue);
+
+        glBindBuffer(GL_ARRAY_BUFFER, mesh.vertexBufferHandle);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.indexBufferHandle);
+
+        auto& ShaderLayout = program.shaderLayout.attributes;
+        for (auto ShaderIt = ShaderLayout.cbegin(); ShaderIt != ShaderLayout.cend(); ++ShaderIt)
         {
-            //Create a new vao for this submesh/program
-            
-            glGenVertexArrays(1, &toReturn);
-            glBindVertexArray(toReturn);
-
-            glBindBuffer(GL_ARRAY_BUFFER, mesh.vertexBufferHandle);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.indexBufferHandle);
-
-            auto& ShaderLayout = program.shaderLayout.attributes;
-            for (auto ShaderIt = ShaderLayout.cbegin(); ShaderIt != ShaderLayout.cend(); ++ShaderIt)
+            bool attributeWasLinked = false;
+            auto SubmeshLayout = Submesh.vertexBufferLayout.attributes;
+            for (auto SubmeshIt = SubmeshLayout.cbegin(); SubmeshIt != SubmeshLayout.cend(); ++SubmeshIt)
             {
-                bool attributeWasLinked = false;
-
-                auto SubMeshLayout = submesh.vertexBufferLayout.attributes;
-                for (auto SubmeshIt = SubMeshLayout.cbegin(); SubmeshIt != SubMeshLayout.cend(); ++SubmeshIt)
+                if (ShaderIt->location == SubmeshIt->location)
                 {
-                    if (ShaderIt->location == SubmeshIt->location)
-                    {
-                        const u32 index = SubmeshIt->location;
-                        const u32 ncomp = SubmeshIt->componentCount;
-                        const u32 offset = SubmeshIt->offset * submesh.vertexOffset;
-                        const u32 stride = submesh.vertexBufferLayout.stride;
+                    const u32 index = SubmeshIt->location;
+                    const u32 ncomp = SubmeshIt->componentCount;
+                    const u32 offset = SubmeshIt->offset + Submesh.vertexOffset;
+                    const u32 stride = Submesh.vertexBufferLayout.stride;
 
-                        glVertexAttribPointer(index, ncomp, GL_FLOAT, GL_FALSE, stride, (void*)(u64)(offset));
-                        glEnableVertexAttribArray(index);
+                    glVertexAttribPointer(index, ncomp, GL_FLOAT, GL_FALSE, stride, (void*)(u64)(offset));
+                    glEnableVertexAttribArray(index);
 
-                        attributeWasLinked = true;
-                        break;
-                    }
+                    attributeWasLinked = true;
+                    break;
                 }
-                assert(attributeWasLinked);
             }
-            glBindVertexArray(0);
-        
-            //Store it in the list of vaos for this submesh
-            ModelLoader::VAO vao = { toReturn, program.handle };
-            submesh.vaos.push_back(vao);
+            assert(attributeWasLinked);
         }
-        return toReturn;
+        glBindVertexArray(0);
+
+        VAO vao = { ReturnValue, program.handle };
+        Submesh.vaos.push_back(vao);
+    }
+
+    return ReturnValue;
 }
 
 void Init(App* app)
@@ -262,52 +188,41 @@ void Init(App* app)
     // - programs (and retrieve uniform indices)
     // - textures
 
-    //Get OPENGL info
-    app->openGLDebugInfo += "OpenGL version:\n" + std::string(reinterpret_cast<const char*>(glGetString(GL_VERSION)));
+    //Get OPENGL info.
+    app->openglDebugInfo += "OpeGL version:\n" + std::string(reinterpret_cast<const char*>(glGetString(GL_VERSION)));
 
-    glGenBuffers(1, &app->embeddedVertices);
-    glBindBuffer(GL_ARRAY_BUFFER, app->embeddedVertices);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    //glGenBuffers(1, &app->embeddedVertices);
+    //glBindBuffer(GL_ARRAY_BUFFER, app->embeddedVertices);
+    //glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    //glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    glGenBuffers(1, &app->embeddedElements);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, app->embeddedElements);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indicex), indicex, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    //glGenBuffers(1, &app->embeddedElements);
+    //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, app->embeddedElements);
+    //glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+    //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    glGenVertexArrays(1, &app->vao);
-    glBindVertexArray(app->vao);
-    glBindBuffer(GL_ARRAY_BUFFER, app->embeddedVertices);
+    //glGenVertexArrays(1, &app->vao);
+    //glBindVertexArray(app->vao);
+    //glBindBuffer(GL_ARRAY_BUFFER, app->embeddedVertices);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexV3V2), (void*) 0);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(VertexV3V2), (void*)12);
-    glEnableVertexAttribArray(1);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, app->embeddedElements);
-    glBindVertexArray(0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    //glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexV3V2), (void*)0);
+    //glEnableVertexAttribArray(0);
+    //glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(VertexV3V2), (void*)12);
+    //glEnableVertexAttribArray(1);
+    //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, app->embeddedElements);
+    //glBindVertexArray(0);
+    //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    app->texturedGeometryProgramIdx = LoadProgram(app, "shaders.glsl", "TEXTURED_GEOMETRY");
-    const Program& texturedGeometryProgram = app->programs[app->texturedGeometryProgramIdx];
-    app->programUniformTexture = glGetUniformLocation(texturedGeometryProgram.handle, "uTexture");
+    //app->texturedGeometryProgramIdx = LoadProgram(app, "shaders.glsl", "TEXTURED_GEOMETRY");
+    //const Program& texturedGeometryProgram = app->programs[app->texturedGeometryProgramIdx];
+    //app->programUniformTexture = glGetUniformLocation(texturedGeometryProgram.handle, "uTexture");
 
-    app->diceTexIdx = LoadTexture2D(app, "dice.png");
+    app->texturedMeshProgramIdx = LoadProgram(app, "base_model.glsl", "BASE_MODEL");
+    const Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
+    app->texturedMeshProgram_uTexture = glGetUniformLocation(texturedMeshProgram.handle, "uTexture");
+    ModelLoader::LoadModel(app, "Patrick/Patrick.obj");
 
-    //Model
-
-    ModelLoader::VertexBufferLayout vertexBufferLayout = {};
-    vertexBufferLayout.attributes.push_back(ModelLoader::VertexBufferAttribute{0, 3, 0});
-    vertexBufferLayout.attributes.push_back(ModelLoader::VertexBufferAttribute{2, 2, 3 * sizeof(float)});
-    vertexBufferLayout.stride = 5 * sizeof(float);
-
-    //add the submesh into the mesh
-    SubMesh submesh = {};
-    submesh.vertexBufferLayout = vertexBufferLayout;
-    submesh.vertices.swap(vertices);
-    submesh.indices.swap(indices);
-
-    //Model
-
+    //app->diceTexIdx = ModelLoader::LoadTexture2D(app, "dice.png");
 
     app->mode = Mode_TexturedQuad;
 }
@@ -315,8 +230,8 @@ void Init(App* app)
 void Gui(App* app)
 {
     ImGui::Begin("Info");
-    ImGui::Text("FPS: %f", 1.0f/app->deltaTime);
-    ImGui::Text("%s", app->openGLDebugInfo.c_str());
+    ImGui::Text("FPS: %f", 1.0f / app->deltaTime);
+    ImGui::Text("%s", app->openglDebugInfo.c_str());
     ImGui::End();
 }
 
@@ -325,58 +240,77 @@ void Update(App* app)
     // You can handle app->input keyboard/mouse here
 }
 
+glm::mat4 TransformScale(const vec3& scaleFactors)
+{
+    return glm::scale(scaleFactors);
+}
+
+glm::mat4 TransformPositionScale(const vec3& position, const vec3& scaleFactors)
+{
+    glm::mat4 toReturn = glm::translate(position);
+    toReturn = glm::scale(toReturn, scaleFactors);
+    return toReturn;
+}
+
 void Render(App* app)
 {
     switch (app->mode)
     {
-        case Mode_TexturedQuad:
-            {
-                glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    case Mode_TexturedQuad:
+    {
+        float aspectRatio = (float)app->displaySize.x / (float)app->displaySize.y;
+        float znear = 0.1f;
+        float zfar = 1000.0f;
+        glm::mat4 projection = glm::perspective(glm::radians(60.0f), aspectRatio, znear, zfar);
+        
+        vec3 target = vec3(0.0f, 0.0f, 0.0f);
+        vec3 cameraPosition = vec3(5.0f, 5.0f, 5.0f);
 
-                glViewport(0, 0, app->displaySize.x, app->displaySize.y);
+        vec3 zCam = glm::normalize(cameraPosition - target);
+        vec3 xCam = glm::cross(zCam, vec3(0.0f, 1.0f, 0.0f));
+        vec3 yCam = glm::cross(xCam, zCam);
 
-                const Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
-                glUseProgram(texturedMeshProgram.handle);
+        
+        glm::mat4 view = glm::lookAt(cameraPosition, target, yCam);
 
-                Model& model = app->models[app->patricioModel];
-                Mesh& mesh = app->meshes[model.meshIdx];
-
-                for (u32 i = 0; i < mesh.submeshes.size(); ++i)
-                {
-                    GLuint vao = FindVAO(mesh, i, texturedMeshProgram);
-                    glBindVertexArray(vao);
-
-                    u32 subMesheMaterialIdx = model.materialIdx[i];
-                    Material& subMeshMaterial = app->materials[subMesheMaterialIdx];
-
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, app->textures[subMeshMaterial.albedoTextureIdx].handle);
-                    glUniform1i(app->texturedMeshProgram_uTexture, 0);
-
-                    SubMesh& submesh = mesh.submeshes[i];
-                    glDrawElements(GL_TRIANGLES, submesh.indices.size(), GL_UNSIGNED_INT, (void*)(u64)submesh.indexOffset);
-                }
-                /*glBindVertexArray(app->vao);
-
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-                glUniform1i(app->programUniformTexture, 0);
-                glActiveTexture(GL_TEXTURE0);
-                const GLuint textureHandle = app->textures[app->diceTexIdx].handle;
-                glBindTexture(GL_TEXTURE_2D, textureHandle);
-
-                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
-
-                glBindVertexArray(0);
-                glUseProgram(0);*/
+        glm::mat4 world = TransformPositionScale(vec3(0.0f, 2.0f, 0.0f), vec3(0.45f));
+        glm::mat4 WVP = projection * view * world;
 
 
-            }
-            break;
+        glEnable(GL_DEPTH_TEST);
 
-        default:;
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glViewport(0, 0, app->displaySize.x, app->displaySize.y);
+
+        const Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
+        glUseProgram(texturedMeshProgram.handle);
+
+        Model& model = app->models[app->patricioModel];
+        Mesh& mesh = app->meshes[model.meshIdx];
+
+        glUniformMatrix4fv(glGetUniformLocation(texturedMeshProgram.handle, "WVP"), 1, GL_FALSE, &WVP[0][0]);
+
+        for (u32 i = 0; i < mesh.submeshes.size(); ++i)
+        {
+            GLuint vao = FindVAO(mesh, i, texturedMeshProgram);
+            glBindVertexArray(vao);
+
+            u32 subMeshmaterialIdx = model.materialIdx[i];
+            Material& subMeshMaterial = app->materials[subMeshmaterialIdx];
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, app->textures[subMeshMaterial.albedoTextureIdx].handle);
+            glUniform1i(app->texturedMeshProgram_uTexture, 0);
+
+            SubMesh& submesh = mesh.submeshes[i];
+            glDrawElements(GL_TRIANGLES, submesh.indices.size(), GL_UNSIGNED_INT, (void*)(u64)submesh.indexOffset);
+        }
+    }
+    break;
+
+    default:;
     }
 }
 
