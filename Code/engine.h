@@ -24,6 +24,9 @@ const u16 indices[] =
 
 struct App
 {
+
+    void UpdateEntityBuffer();
+
     // Loop
     f32  deltaTime;
     bool isRunning;
@@ -72,6 +75,11 @@ struct App
     GLuint vao;
 
     std::string openglDebugInfo;
+
+    GLint maxUniformBufferSize;
+    GLint uniformBlockAlignment;
+    Buffer localUnfiromBuffer;
+    std::vector<Entity> entities;
 };
 
 void Init(App* app);

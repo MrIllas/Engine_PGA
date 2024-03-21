@@ -220,7 +220,16 @@ void Init(App* app)
     app->texturedMeshProgramIdx = LoadProgram(app, "base_model.glsl", "BASE_MODEL");
     const Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
     app->texturedMeshProgram_uTexture = glGetUniformLocation(texturedMeshProgram.handle, "uTexture");
-    ModelLoader::LoadModel(app, "Patrick/Patrick.obj");
+    u32 PatrickModelIndex = ModelLoader::LoadModel(app, "Patrick/Patrick.obj");
+
+    glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &app->maxUniformBufferSize);
+    glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &app->uniformBlockAlignment);
+
+    app->localUnfiromBuffer = CreateConstantBuffer(app->maxUniformBufferSize);
+
+    app->entities.push_back({glm::identity<glm::mat4>(), PatrickModelIndex, 0, 0});
+    app->entities.push_back({ glm::identity<glm::mat4>(), PatrickModelIndex, 0, 0 });
+    app->entities.push_back({ glm::identity<glm::mat4>(), PatrickModelIndex, 0, 0 });
 
     //app->diceTexIdx = ModelLoader::LoadTexture2D(app, "dice.png");
 
@@ -258,55 +267,42 @@ void Render(App* app)
     {
     case Mode_TexturedQuad:
     {
-        float aspectRatio = (float)app->displaySize.x / (float)app->displaySize.y;
-        float znear = 0.1f;
-        float zfar = 1000.0f;
-        glm::mat4 projection = glm::perspective(glm::radians(60.0f), aspectRatio, znear, zfar);
-        
-        vec3 target = vec3(0.0f, 0.0f, 0.0f);
-        vec3 cameraPosition = vec3(5.0f, 5.0f, 5.0f);
-
-        vec3 zCam = glm::normalize(cameraPosition - target);
-        vec3 xCam = glm::cross(zCam, vec3(0.0f, 1.0f, 0.0f));
-        vec3 yCam = glm::cross(xCam, zCam);
-
-        
-        glm::mat4 view = glm::lookAt(cameraPosition, target, yCam);
-
-        glm::mat4 world = TransformPositionScale(vec3(0.0f, 2.0f, 0.0f), vec3(0.45f));
-        glm::mat4 WVP = projection * view * world;
-
+        app->UpdateEntityBuffer();
 
         glEnable(GL_DEPTH_TEST);
+        
 
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
         glViewport(0, 0, app->displaySize.x, app->displaySize.y);
 
         const Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
         glUseProgram(texturedMeshProgram.handle);
 
-        Model& model = app->models[app->patricioModel];
-        Mesh& mesh = app->meshes[model.meshIdx];
-
-        glUniformMatrix4fv(glGetUniformLocation(texturedMeshProgram.handle, "WVP"), 1, GL_FALSE, &WVP[0][0]);
-
-        for (u32 i = 0; i < mesh.submeshes.size(); ++i)
+        BufferManager::BindBuffer(app->localUnfiromBuffer);
+        for (auto it = app->entities.begin(); it != app->entities.end(); ++it)
         {
-            GLuint vao = FindVAO(mesh, i, texturedMeshProgram);
-            glBindVertexArray(vao);
+            glBindBufferRange(GL_UNIFORM_BUFFER, BINDING(1), app->localUnfiromBuffer.handle, it->localParamsOffset, it->localParamsSize);
 
-            u32 subMeshmaterialIdx = model.materialIdx[i];
-            Material& subMeshMaterial = app->materials[subMeshmaterialIdx];
+            Model& model = app->models[app->patricioModel];
+            Mesh& mesh = app->meshes[model.meshIdx];
+            for (u32 i = 0; i < mesh.submeshes.size(); ++i)
+            {
+                GLuint vao = FindVAO(mesh, i, texturedMeshProgram);
+                glBindVertexArray(vao);
 
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, app->textures[subMeshMaterial.albedoTextureIdx].handle);
-            glUniform1i(app->texturedMeshProgram_uTexture, 0);
+                u32 subMeshmaterialIdx = model.materialIdx[i];
+                Material& subMeshMaterial = app->materials[subMeshmaterialIdx];
 
-            SubMesh& submesh = mesh.submeshes[i];
-            glDrawElements(GL_TRIANGLES, submesh.indices.size(), GL_UNSIGNED_INT, (void*)(u64)submesh.indexOffset);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, app->textures[subMeshMaterial.albedoTextureIdx].handle);
+                glUniform1i(app->texturedMeshProgram_uTexture, 0);
+
+                SubMesh& submesh = mesh.submeshes[i];
+                glDrawElements(GL_TRIANGLES, submesh.indices.size(), GL_UNSIGNED_INT, (void*)(u64)submesh.indexOffset);
+            }
         }
+        BufferManager::UnmapBuffer(app->localUnfiromBuffer);
     }
     break;
 
@@ -314,3 +310,38 @@ void Render(App* app)
     }
 }
 
+void App::UpdateEntityBuffer()
+{
+    float aspectRatio = (float)displaySize.x / (float)displaySize.y;
+    float znear = 0.1f;
+    float zfar = 1000.0f;
+    glm::mat4 projection = glm::perspective(glm::radians(60.0f), aspectRatio, znear, zfar);
+
+    vec3 target = vec3(0.0f, 0.0f, 0.0f);
+    vec3 cameraPosition = vec3(5.0f, 5.0f, 5.0f);
+
+    vec3 zCam = glm::normalize(cameraPosition - target);
+    vec3 xCam = glm::cross(zCam, vec3(0.0f, 1.0f, 0.0f));
+    vec3 yCam = glm::cross(xCam, zCam);
+
+
+    glm::mat4 view = glm::lookAt(cameraPosition, target, yCam);
+
+    u32 iteration = 0;
+    BufferManager::MapBuffer(localUnfiromBuffer, GL_WRITE_ONLY);
+    for (auto it = entities.begin(); it != entities.end(); ++it)
+    {
+        glm::mat4 world = TransformPositionScale(vec3(0.0f + (1 * iteration), 2.0f, 0.0f), vec3(0.45f));
+        glm::mat4 WVP = projection * view * world;
+
+        Buffer& localBuffer = localUnfiromBuffer;
+        BufferManager::AlignHead(localBuffer, uniformBlockAlignment);
+        it->localParamsOffset = localBuffer.head;
+        PushMat4(localBuffer, world);
+        PushMat4(localBuffer, WVP);
+        it->localParamsSize = localBuffer.head - it->localParamsOffset;
+
+        ++iteration;
+    }
+    BufferManager::UnmapBuffer(localUnfiromBuffer);
+}
