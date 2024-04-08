@@ -137,8 +137,9 @@ struct Model
 
 enum Mode
 {
-    Mode_TexturedQuad,
-    Mode_Count
+    Mode_Forward, 
+    Mode_Deferred,
+    Mode_Count,
 };
 
 struct VertexV3V2

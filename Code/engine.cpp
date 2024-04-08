@@ -231,9 +231,44 @@ void Init(App* app)
     app->entities.push_back({ glm::identity<glm::mat4>(), PatrickModelIndex, 0, 0 });
     app->entities.push_back({ glm::identity<glm::mat4>(), PatrickModelIndex, 0, 0 });
 
-    //app->diceTexIdx = ModelLoader::LoadTexture2D(app, "dice.png");
+    
+    //Framebuffer class
+    app->colorAttatchmentHandle = 0;
+    glGenTextures(1, &app->colorAttatchmentHandle);
+    glBindTexture(GL_TEXTURE_2D, app->colorAttatchmentHandle);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, app->displaySize.x, app->displaySize.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
-    app->mode = Mode_TexturedQuad;
+    GLuint depthAttachmentHandle = 0;
+    glGenTextures(1, &depthAttachmentHandle);
+    glBindTexture(GL_TEXTURE_2D, depthAttachmentHandle);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, app->displaySize.x, app->displaySize.y, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glGenFramebuffers(1, &app->frameBufferHandle);
+    glBindFramebuffer(GL_FRAMEBUFFER, app->frameBufferHandle);
+    /*glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, app->colorAttatchmentHandle, 0);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthAttachmentHandle, 0);*/
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, app->colorAttatchmentHandle, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthAttachmentHandle, 0);
+    //glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    GLenum drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
+    glDrawBuffers(ARRAY_COUNT(drawBuffers), drawBuffers);
+    
+    //glDrawBuffers(1, &app->colorAttatchmentHandle);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    app->mode = Mode_Deferred;
 }
 
 void Gui(App* app)
@@ -265,16 +300,25 @@ void Render(App* app)
 {
     switch (app->mode)
     {
-    case Mode_TexturedQuad:
+    case  Mode_Deferred:
     {
         app->UpdateEntityBuffer();
 
-        glEnable(GL_DEPTH_TEST);
-        
+        //glEnable(GL_DEPTH_TEST);
 
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glViewport(0, 0, app->displaySize.x, app->displaySize.y);
+
+        //
+        glBindFramebuffer(GL_FRAMEBUFFER, app->frameBufferHandle);
+
+        GLuint drawBuffers[] = { app->colorAttatchmentHandle };
+        glDrawBuffers(ARRAY_COUNT(drawBuffers), drawBuffers);
+
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        //
 
         const Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
         glUseProgram(texturedMeshProgram.handle);
@@ -308,6 +352,7 @@ void Render(App* app)
 
     default:;
     }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void App::UpdateEntityBuffer()

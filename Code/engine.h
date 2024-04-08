@@ -80,6 +80,9 @@ struct App
     GLint uniformBlockAlignment;
     Buffer localUnfiromBuffer;
     std::vector<Entity> entities;
+
+    GLuint frameBufferHandle;
+    GLuint colorAttatchmentHandle;
 };
 
 void Init(App* app);
