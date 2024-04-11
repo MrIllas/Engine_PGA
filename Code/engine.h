@@ -27,6 +27,10 @@ struct App
 
     void UpdateEntityBuffer();
 
+    void ConfigureFrameBuffer(FrameBuffer& aConfigFB);
+
+    void RenderGeometry(const Program aBindedProgram);
+
     // Loop
     f32  deltaTime;
     bool isRunning;
@@ -47,8 +51,9 @@ struct App
     std::vector<Program>    programs;
 
     // program indices
-    u32 texturedGeometryProgramIdx = 0;
-    u32 texturedMeshProgramIdx = 0;
+    GLuint renderToBackBufferShader;
+    GLuint renderToFrameBufferShader;
+    GLuint framebufferToQuadShader;
 
     u32 patricioModel = 0;
     GLuint texturedMeshProgram_uTexture;
@@ -80,9 +85,9 @@ struct App
     GLint uniformBlockAlignment;
     Buffer localUnfiromBuffer;
     std::vector<Entity> entities;
+    std::vector<Light> lights;
 
-    GLuint frameBufferHandle;
-    GLuint colorAttatchmentHandle;
+    FrameBuffer defferedFrameBuffer;
 };
 
 void Init(App* app);

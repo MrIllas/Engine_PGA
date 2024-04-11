@@ -217,7 +217,11 @@ void Init(App* app)
     //const Program& texturedGeometryProgram = app->programs[app->texturedGeometryProgramIdx];
     //app->programUniformTexture = glGetUniformLocation(texturedGeometryProgram.handle, "uTexture");
 
-    app->texturedMeshProgramIdx = LoadProgram(app, "base_model.glsl", "BASE_MODEL");
+    app->renderToBackBufferShader = LoadProgram(app, "RENDER_TO_BB.glsl", "RENDER_TO_BB");
+    app->renderToFrameBufferShader = LoadProgram(app, "RENDER_TO_FB.glsl", "RENDER_TO_FB");
+    app->framebufferToQuadShader = LoadProgram(app, "FB_TO_QUAD.glsl", "FB_TO_QUAD");
+
+
     const Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
     app->texturedMeshProgram_uTexture = glGetUniformLocation(texturedMeshProgram.handle, "uTexture");
     u32 PatrickModelIndex = ModelLoader::LoadModel(app, "Patrick/Patrick.obj");
@@ -231,42 +235,7 @@ void Init(App* app)
     app->entities.push_back({ glm::identity<glm::mat4>(), PatrickModelIndex, 0, 0 });
     app->entities.push_back({ glm::identity<glm::mat4>(), PatrickModelIndex, 0, 0 });
 
-    
-    //Framebuffer class
-    app->colorAttatchmentHandle = 0;
-    glGenTextures(1, &app->colorAttatchmentHandle);
-    glBindTexture(GL_TEXTURE_2D, app->colorAttatchmentHandle);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, app->displaySize.x, app->displaySize.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    GLuint depthAttachmentHandle = 0;
-    glGenTextures(1, &depthAttachmentHandle);
-    glBindTexture(GL_TEXTURE_2D, depthAttachmentHandle);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, app->displaySize.x, app->displaySize.y, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    glGenFramebuffers(1, &app->frameBufferHandle);
-    glBindFramebuffer(GL_FRAMEBUFFER, app->frameBufferHandle);
-    /*glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, app->colorAttatchmentHandle, 0);
-    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthAttachmentHandle, 0);*/
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, app->colorAttatchmentHandle, 0);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthAttachmentHandle, 0);
-    //glDrawBuffer(GL_COLOR_ATTACHMENT0);
-    GLenum drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
-    glDrawBuffers(ARRAY_COUNT(drawBuffers), drawBuffers);
-    
-    //glDrawBuffers(1, &app->colorAttatchmentHandle);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    app->ConfigureFrameBuffer(app->defferedFrameBuffer);
 
     app->mode = Mode_Deferred;
 }
@@ -276,6 +245,38 @@ void Gui(App* app)
     ImGui::Begin("Info");
     ImGui::Text("FPS: %f", 1.0f / app->deltaTime);
     ImGui::Text("%s", app->openglDebugInfo.c_str());
+
+    const char* RenderModes[] = {"FORWARD", "DEFERRED"};
+    if (ImGui::BeginCombo("Render Mode", RenderModes[app->mode]))
+    {
+        for (size_t i = 0; i < ARRAY_COUNT(RenderModes); ++i)
+        {
+            bool isSelected = (i == app->mode);
+            if (ImGui::Selectable(RenderModes[i], isSelected))
+            {
+                app->mode = static_cast<Mode>(i);
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    if (app->mode == Mode::Mode_Deferred)
+    {
+        for (size_t i = 0; i < ARRAY_COUNT(RenderModes); ++i)
+        {
+            bool isSelected = (i == app->mode);
+            if (ImGui::Selectable(RenderModes[i], isSelected))
+            {
+                app->mode = static_cast<Mode>(i);
+            }
+        }
+    }
+
+    for (size_t i = 0; i < app->defferedFrameBuffer.colorAttachment.size(); ++i) 
+    {
+        ImGui::Image((ImTextureID)app->defferedFrameBuffer.colorAttachment[i], ImVec2(320, 180), ImVec2(0, 1), ImVec2(1,0));
+    }
+
     ImGui::End();
 }
 
@@ -300,57 +301,48 @@ void Render(App* app)
 {
     switch (app->mode)
     {
-    case  Mode_Deferred:
-    {
-        app->UpdateEntityBuffer();
-
-        //glEnable(GL_DEPTH_TEST);
-
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glViewport(0, 0, app->displaySize.x, app->displaySize.y);
-
-        //
-        glBindFramebuffer(GL_FRAMEBUFFER, app->frameBufferHandle);
-
-        GLuint drawBuffers[] = { app->colorAttatchmentHandle };
-        glDrawBuffers(ARRAY_COUNT(drawBuffers), drawBuffers);
-
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        //
-
-        const Program& texturedMeshProgram = app->programs[app->texturedMeshProgramIdx];
-        glUseProgram(texturedMeshProgram.handle);
-
-        BufferManager::BindBuffer(app->localUnfiromBuffer);
-        for (auto it = app->entities.begin(); it != app->entities.end(); ++it)
-        {
-            glBindBufferRange(GL_UNIFORM_BUFFER, BINDING(1), app->localUnfiromBuffer.handle, it->localParamsOffset, it->localParamsSize);
-
-            Model& model = app->models[app->patricioModel];
-            Mesh& mesh = app->meshes[model.meshIdx];
-            for (u32 i = 0; i < mesh.submeshes.size(); ++i)
+        case  Mode_Forward:
             {
-                GLuint vao = FindVAO(mesh, i, texturedMeshProgram);
-                glBindVertexArray(vao);
+                app->UpdateEntityBuffer();
 
-                u32 subMeshmaterialIdx = model.materialIdx[i];
-                Material& subMeshMaterial = app->materials[subMeshmaterialIdx];
+                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, app->textures[subMeshMaterial.albedoTextureIdx].handle);
-                glUniform1i(app->texturedMeshProgram_uTexture, 0);
+                glViewport(0, 0, app->displaySize.x, app->displaySize.y);
 
-                SubMesh& submesh = mesh.submeshes[i];
-                glDrawElements(GL_TRIANGLES, submesh.indices.size(), GL_UNSIGNED_INT, (void*)(u64)submesh.indexOffset);
+                const Program& forwardProgram = app->programs[app->renderToFrameBufferShader];
+                glUseProgram(forwardProgram.handle);
+
+                //BufferManager::BindBuffer(app->localUnfiromBuffer);
+                app->RenderGeometry(forwardProgram);
+                //BufferManager::UnmapBuffer(app->localUnfiromBuffer);
             }
-        }
-        BufferManager::UnmapBuffer(app->localUnfiromBuffer);
-    }
-    break;
+            break;
+        case  Mode_Deferred:
+            {
+                app->UpdateEntityBuffer();
 
-    default:;
+                glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                glViewport(0, 0, app->displaySize.x, app->displaySize.y);
+                glBindFramebuffer(GL_FRAMEBUFFER, app->defferedFrameBuffer.fbHandle);
+
+                glDrawBuffers(app->defferedFrameBuffer.colorAttachment.size(), app->defferedFrameBuffer.colorAttachment.data());
+
+                glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                const Program& deferredProgram = app->programs[app->renderToFrameBufferShader];
+                glUseProgram(deferredProgram.handle);
+
+                app->RenderGeometry(deferredProgram);
+                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+            }
+            break;
+        default:;
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
@@ -389,4 +381,85 @@ void App::UpdateEntityBuffer()
         ++iteration;
     }
     BufferManager::UnmapBuffer(localUnfiromBuffer);
+}
+
+
+void App::ConfigureFrameBuffer(FrameBuffer& aConfigFB)
+{
+    const GLuint NUMBER_OF_CA = 3;
+    for (size_t i = 0; i < NUMBER_OF_CA; ++i)
+    {
+        GLuint nColorAttachment = 0;
+        glGenTextures(1, &nColorAttachment);
+        glBindTexture(GL_TEXTURE_2D, nColorAttachment);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, displaySize.x, displaySize.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        aConfigFB.colorAttachment.push_back(nColorAttachment);
+    }
+
+    
+    glGenTextures(1, &aConfigFB.depthHandle);
+    glBindTexture(GL_TEXTURE_2D, aConfigFB.depthHandle);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, displaySize.x, displaySize.y, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glGenFramebuffers(1, &aConfigFB.fbHandle);
+    glBindFramebuffer(GL_FRAMEBUFFER, aConfigFB.fbHandle);
+
+    std::vector<GLuint> drawBuffers;
+    for (size_t i = 0; i < NUMBER_OF_CA; ++i)
+    {
+        GLuint position = GL_COLOR_ATTACHMENT0 + i;
+        //glFramebufferTexture2D(GL_FRAMEBUFFER, position, GL_TEXTURE_2D, aConfigFB.colorAttachment[i], 0);
+        glFramebufferTexture(GL_FRAMEBUFFER, position, aConfigFB.colorAttachment[i], 0);
+        drawBuffers.push_back(position);
+    }
+    //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, aConfigFB.depthHandle, 0);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, aConfigFB.depthHandle, 0);
+    
+    glDrawBuffers(drawBuffers.size(), drawBuffers.data());
+
+    GLenum framebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (framebufferStatus != GL_FRAMEBUFFER_COMPLETE)
+    {
+        int i = 0;
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void App::RenderGeometry(const Program aBindedProgram)
+{
+    glBindBufferRange(GL_UNIFORM_BUFFER, BINDING(0), localUnfiromBuffer.handle, globalParamsOffset, globalParamsSize);
+    for (auto it = entities.begin(); it != entities.end(); ++it)
+    {
+        glBindBufferRange(GL_UNIFORM_BUFFER, BINDING(1), localUnfiromBuffer.handle, it->localParamsOffset, it->localParamsSize);
+
+        Model& model = models[patricioModel];
+        Mesh& mesh = meshes[model.meshIdx];
+        for (u32 i = 0; i < mesh.submeshes.size(); ++i)
+        {
+            GLuint vao = FindVAO(mesh, i, aBindedProgram);
+            glBindVertexArray(vao);
+
+            u32 subMeshmaterialIdx = model.materialIdx[i];
+            Material& subMeshMaterial = materials[subMeshmaterialIdx];
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, textures[subMeshMaterial.albedoTextureIdx].handle);
+            glUniform1i(texturedMeshProgram_uTexture, 0);
+
+            SubMesh& submesh = mesh.submeshes[i];
+            glDrawElements(GL_TRIANGLES, submesh.indices.size(), GL_UNSIGNED_INT, (void*)(u64)submesh.indexOffset);
+        }
+    }
 }
