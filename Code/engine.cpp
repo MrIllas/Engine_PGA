@@ -7,9 +7,10 @@
 
 #include "engine.h"
 #include <imgui.h>
-#include <stb_image.h>
-#include <stb_image_write.h>
-#include "Globals.h"
+//#include <stb_image.h>
+//#include <stb_image_write.h>
+//#include "Globals.h"
+#include "ModelLoaderFuncs.h"
 
 GLuint CreateProgramFromSource(String programSource, const char* shaderName)
 {
@@ -105,7 +106,7 @@ u32 LoadProgram(App* app, const char* filepath, const char* programName)
 
     for (GLuint i = 0; i < attributeCount; i++)
     {
-        GLsizei length = 0;
+        GLsizei length = 256; // GLsizei length = 0;
         GLint size = 0;
         GLenum type = 0;
         GLchar name[256];
@@ -168,6 +169,7 @@ GLuint FindVAO(Mesh& mesh, u32 submeshIndex, const Program& program)
                     break;
                 }
             }
+
             assert(attributeWasLinked);
         }
         glBindVertexArray(0);
@@ -186,6 +188,11 @@ glm::mat4 TransformPositionScale(const vec3& position, const vec3& scaleFactors)
     return toReturn;
 }
 
+glm::mat4 TranformScale(const vec3& scaleFactors)
+{
+    return glm::scale(scaleFactors);
+}
+
 void Init(App* app)
 {
     // TODO: Initialize your resources here!
@@ -196,33 +203,36 @@ void Init(App* app)
     // - textures
 
     //Get OPENGL info.
-    app->openglDebugInfo += "OpeGL version:\n" + std::string(reinterpret_cast<const char*>(glGetString(GL_VERSION)));
+    app->openglDebugInfo += "Open GL version:\n" + std::string(reinterpret_cast<const char*>(glGetString(GL_VERSION)));
 
+    //Vertex Buffer Object (VBO)
     glGenBuffers(1, &app->embeddedVertices);
     glBindBuffer(GL_ARRAY_BUFFER, app->embeddedVertices);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+    // Element Buffer Objects (EBO)
     glGenBuffers(1, &app->embeddedElements);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, app->embeddedElements);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
+    // Vertex Array Object (VAO)
     glGenVertexArrays(1, &app->vao);
     glBindVertexArray(app->vao);
     glBindBuffer(GL_ARRAY_BUFFER, app->embeddedVertices);
-
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(VertexV3V2), (void*)0);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(VertexV3V2), (void*)12);
     glEnableVertexAttribArray(1);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, app->embeddedElements);
     glBindVertexArray(0);
+
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    app->renderToBackBufferShader = LoadProgram(app, "RENDER_TO_BB.glsl", "RENDER_TO_BB");
-    app->renderToFrameBufferShader = LoadProgram(app, "RENDER_TO_FB.glsl", "RENDER_TO_FB");
-    app->framebufferToQuadShader = LoadProgram(app, "FB_TO_BB.glsl", "FB_TO_BB");
+    app->renderToBackBufferShader = LoadProgram(app, "RENDER_TO_BB.glsl", "RENDER_TO_BB"); //Forward
+    app->renderToFrameBufferShader = LoadProgram(app, "RENDER_TO_FB.glsl", "RENDER_TO_FB"); //Deferred
+    app->framebufferToQuadShader = LoadProgram(app, "FB_TO_BB.glsl", "FB_TO_BB"); 
     //app->framebufferToQuadShader = LoadProgram(app, "FB_TO_QUAD.glsl", "FB_TO_QUAD");
 
     const Program& texturedMeshProgram = app->programs[app->renderToBackBufferShader];
@@ -230,13 +240,18 @@ void Init(App* app)
     u32 PatrickModelIndex = ModelLoader::LoadModel(app, "Patrick/Patrick.obj");
     u32 GroundModelIndex = ModelLoader::LoadModel(app, "./ground.obj");
 
+    VertexBufferLayout vertexBufferLayout = {};
+    vertexBufferLayout.attributes.push_back(VertexBufferAttribute{ 0, 3, 0 });
+    vertexBufferLayout.attributes.push_back(VertexBufferAttribute{ 2, 2, 3 * sizeof(float) });
+    vertexBufferLayout.stride = 5 * sizeof(float);
+
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
 
     glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &app->maxUniformBufferSize);
     glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &app->uniformBlockAlignment);
 
-    app->localUnfiromBuffer = CreateConstantBuffer(app->maxUniformBufferSize);
+    app->localUniformBuffer = CreateConstantBuffer(app->maxUniformBufferSize);
 
     app->entities.push_back({ TransformPositionScale(vec3(5.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0)), PatrickModelIndex, 0, 0});
     app->entities.push_back({ TransformPositionScale(vec3(0.0, 1.0, 5.0), vec3(1.0, 1.0, 1.0)), PatrickModelIndex, 0, 0 });
@@ -297,11 +312,6 @@ void Update(App* app)
     // You can handle app->input keyboard/mouse here
 }
 
-glm::mat4 TransformScale(const vec3& scaleFactors)
-{
-    return glm::scale(scaleFactors);
-}
-
 void Render(App* app)
 {
     switch (app->mode)
@@ -351,7 +361,7 @@ void Render(App* app)
                 glUseProgram(FBToBB.handle);
 
                     //Render Quad
-                glBindBufferRange(GL_UNIFORM_BUFFER, BINDING(0), app->localUnfiromBuffer.handle, app->globalParamsOffset, app->globalParamsSize);
+                glBindBufferRange(GL_UNIFORM_BUFFER, BINDING(0), app->localUniformBuffer.handle, app->globalParamsOffset, app->globalParamsSize);
                 
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, app->defferedFrameBuffer.colorAttachment[0]);
@@ -375,13 +385,13 @@ void Render(App* app)
                 glBindVertexArray(0);
                 glUseProgram(0);
 
-                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                //glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
             }
             break;
         default:;
     }
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    //glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void App::UpdateEntityBuffer()
@@ -402,13 +412,13 @@ void App::UpdateEntityBuffer()
     glm::mat4 view = glm::lookAt(cameraPosition, target, yCam);
 
     u32 iteration = 0;
-    BufferManager::MapBuffer(localUnfiromBuffer, GL_WRITE_ONLY);
+    BufferManager::MapBuffer(localUniformBuffer, GL_WRITE_ONLY);
     for (auto it = entities.begin(); it != entities.end(); ++it)
     {
         glm::mat4 world = TransformPositionScale(vec3(0.0f + (1 * iteration), 2.0f, 0.0f), vec3(0.45f));
         glm::mat4 WVP = projection * view * world;
 
-        Buffer& localBuffer = localUnfiromBuffer;
+        Buffer& localBuffer = localUniformBuffer;
         BufferManager::AlignHead(localBuffer, uniformBlockAlignment);
         it->localParamsOffset = localBuffer.head;
         PushMat4(localBuffer, world);
@@ -417,18 +427,11 @@ void App::UpdateEntityBuffer()
 
         ++iteration;
     }
-    BufferManager::UnmapBuffer(localUnfiromBuffer);
+    BufferManager::UnmapBuffer(localUniformBuffer);
 }
-
 
 void App::ConfigureFrameBuffer(FrameBuffer& aConfigFB)
 {
-    const GLuint NUMBER_OF_CA = 3;
-    /*for (size_t i = 0; i < NUMBER_OF_CA; ++i)
-    {
-        GLuint nColorAttachment = CreateTexture();
-        aConfigFB.colorAttachment.push_back(nColorAttachment);
-    }*/
     aConfigFB.colorAttachment.push_back(CreateTexture());
     aConfigFB.colorAttachment.push_back(CreateTexture(true));
     aConfigFB.colorAttachment.push_back(CreateTexture(true));
@@ -449,16 +452,14 @@ void App::ConfigureFrameBuffer(FrameBuffer& aConfigFB)
     glBindFramebuffer(GL_FRAMEBUFFER, aConfigFB.fbHandle);
 
     std::vector<GLuint> drawBuffers;
-    for (size_t i = 0; i < NUMBER_OF_CA; ++i)
+    for (size_t i = 0; i < aConfigFB.colorAttachment.size(); ++i)
     {
         GLuint position = GL_COLOR_ATTACHMENT0 + i;
-        //glFramebufferTexture2D(GL_FRAMEBUFFER, position, GL_TEXTURE_2D, aConfigFB.colorAttachment[i], 0);
         glFramebufferTexture(GL_FRAMEBUFFER, position, aConfigFB.colorAttachment[i], 0);
         drawBuffers.push_back(position);
     }
-    //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, aConfigFB.depthHandle, 0);
+
     glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, aConfigFB.depthHandle, 0);
-    
     glDrawBuffers(drawBuffers.size(), drawBuffers.data());
 
     GLenum framebufferStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
@@ -471,13 +472,14 @@ void App::ConfigureFrameBuffer(FrameBuffer& aConfigFB)
 
 void App::RenderGeometry(const Program aBindedProgram)
 {
-    glBindBufferRange(GL_UNIFORM_BUFFER, BINDING(0), localUnfiromBuffer.handle, globalParamsOffset, globalParamsSize);
+    glBindBufferRange(GL_UNIFORM_BUFFER, BINDING(0), localUniformBuffer.handle, globalParamsOffset, globalParamsSize);
     for (auto it = entities.begin(); it != entities.end(); ++it)
     {
-        glBindBufferRange(GL_UNIFORM_BUFFER, BINDING(1), localUnfiromBuffer.handle, it->localParamsOffset, it->localParamsSize);
+        glBindBufferRange(GL_UNIFORM_BUFFER, BINDING(1), localUniformBuffer.handle, it->localParamsOffset, it->localParamsSize);
 
-        Model& model = models[patricioModel];
+        Model& model = models[it->modelIndex];
         Mesh& mesh = meshes[model.meshIdx];
+
         for (u32 i = 0; i < mesh.submeshes.size(); ++i)
         {
             GLuint vao = FindVAO(mesh, i, aBindedProgram);

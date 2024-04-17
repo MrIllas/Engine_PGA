@@ -22,12 +22,6 @@ in vec2 vTexCoord;
 uniform sampler2D uTexture;
 layout(location = 0) out vec4 oColor;
 
-
-void CalculateBlitVars(in Light light, out vec3 ambient, out vec3 diffuse, out vec3 specular)
-{
-	
-}
-
 void main()
 {
 	oColor = texture(uTexture, vTexCoord);

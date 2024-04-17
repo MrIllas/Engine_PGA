@@ -5,7 +5,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include "Globals.h"
-#include <vector>
+//#include <vector>
 
 struct App;
 

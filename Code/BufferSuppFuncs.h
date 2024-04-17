@@ -18,8 +18,6 @@
 
 namespace BufferManager
 {
-
-
     bool IsPowerOf2(u32 value);
 
     u32 Align(u32 value, u32 alignment);
@@ -35,8 +33,6 @@ namespace BufferManager
     void AlignHead(Buffer& buffer, u32 alignment);
 
     void PushAlignedData(Buffer& buffer, const void* data, u32 size, u32 alignment);
-
 }
 
 #endif // !BUFFER_MANAGER_FUNC
-

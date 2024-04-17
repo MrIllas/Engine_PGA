@@ -6,7 +6,7 @@
 
 #include "platform.h"
 #include "BufferSuppFuncs.h"
-#include "ModelLoaderFuncs.h"
+//#include "ModelLoaderFuncs.h"
 #include "Globals.h"
 
 const VertexV3V2 vertices[] = {
@@ -24,7 +24,6 @@ const u16 indices[] =
 
 struct App
 {
-
     void UpdateEntityBuffer();
 
     void ConfigureFrameBuffer(FrameBuffer& aConfigFB);
@@ -57,7 +56,7 @@ struct App
     GLuint renderToFrameBufferShader;
     GLuint framebufferToQuadShader;
 
-    u32 patricioModel = 0;
+    //u32 patricioModel = 0;
     GLuint texturedMeshProgram_uTexture;
 
     // texture indices
@@ -85,7 +84,7 @@ struct App
 
     GLint maxUniformBufferSize;
     GLint uniformBlockAlignment;
-    Buffer localUnfiromBuffer;
+    Buffer localUniformBuffer;
     std::vector<Entity> entities;
     std::vector<Light> lights;
 
