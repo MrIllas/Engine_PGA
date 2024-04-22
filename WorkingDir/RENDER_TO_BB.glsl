@@ -98,7 +98,6 @@ void main()
 	for (int i = 0; i < uLightCount; ++i)
 	{
 		vec3 lightResult = vec3(0.0f);
-
 		vec3 ambient = vec3(0.0f);
 		vec3 diffuse = vec3(0.0f);
 		vec3 specular = vec3(0.0f);

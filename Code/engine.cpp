@@ -227,7 +227,6 @@ void Init(App* app)
     glEnableVertexAttribArray(1);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, app->embeddedElements);
     glBindVertexArray(0);
-
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
     app->renderToBackBufferShader = LoadProgram(app, "RENDER_TO_BB.glsl", "RENDER_TO_BB"); //Forward
@@ -287,21 +286,12 @@ void Gui(App* app)
         ImGui::EndCombo();
     }
 
-    /*if (app->mode == Mode::Mode_Deferred)
+    if (app->mode == Mode::Mode_Deferred)
     {
-        for (size_t i = 0; i < ARRAY_COUNT(RenderModes); ++i)
+        for (size_t i = 0; i < app->defferedFrameBuffer.colorAttachment.size(); ++i)
         {
-            bool isSelected = (i == app->mode);
-            if (ImGui::Selectable(RenderModes[i], isSelected))
-            {
-                app->mode = static_cast<Mode>(i);
-            }
+            ImGui::Image((ImTextureID)app->defferedFrameBuffer.colorAttachment[i], ImVec2(320, 180), ImVec2(0, 1), ImVec2(1, 0));
         }
-    }*/
-
-    for (size_t i = 0; i < app->defferedFrameBuffer.colorAttachment.size(); ++i) 
-    {
-        ImGui::Image((ImTextureID)app->defferedFrameBuffer.colorAttachment[i], ImVec2(320, 180), ImVec2(0, 1), ImVec2(1,0));
     }
 
     ImGui::End();
@@ -321,12 +311,12 @@ void Render(App* app)
                 app->UpdateEntityBuffer();
 
                 glBindFramebuffer(GL_FRAMEBUFFER, 0);
-                glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+                glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                 glViewport(0, 0, app->displaySize.x, app->displaySize.y);
 
-                const Program& forwardProgram = app->programs[app->renderToFrameBufferShader];
+                const Program& forwardProgram = app->programs[app->renderToBackBufferShader];
                 glUseProgram(forwardProgram.handle);
 
                 //BufferManager::BindBuffer(app->localUnfiromBuffer);
@@ -344,7 +334,7 @@ void Render(App* app)
                 glViewport(0, 0, app->displaySize.x, app->displaySize.y);
                 glBindFramebuffer(GL_FRAMEBUFFER, app->defferedFrameBuffer.fbHandle);
                 glDrawBuffers(app->defferedFrameBuffer.colorAttachment.size(), app->defferedFrameBuffer.colorAttachment.data());
-                glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+                glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                 const Program& deferredProgram = app->programs[app->renderToFrameBufferShader];
@@ -384,14 +374,11 @@ void Render(App* app)
 
                 glBindVertexArray(0);
                 glUseProgram(0);
-
-                //glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
             }
             break;
         default:;
     }
-    //glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void App::UpdateEntityBuffer()
@@ -408,11 +395,28 @@ void App::UpdateEntityBuffer()
     vec3 xCam = glm::cross(zCam, vec3(0.0f, 1.0f, 0.0f));
     vec3 yCam = glm::cross(xCam, zCam);
 
-
     glm::mat4 view = glm::lookAt(cameraPosition, target, yCam);
 
-    u32 iteration = 0;
     BufferManager::MapBuffer(localUniformBuffer, GL_WRITE_ONLY);
+
+    PushVec3(localUniformBuffer, cameraPosition);
+    PushUInt(localUniformBuffer, lights.size());
+
+    //Light
+    for (int i = 0; i < lights.size(); ++i)
+    {
+        BufferManager::AlignHead(localUniformBuffer, sizeof(vec4));
+
+        Light& light = lights[i];
+        PushUInt(localUniformBuffer, light.type);
+        PushVec3(localUniformBuffer, light.color);
+        PushVec3(localUniformBuffer, light.direction);
+        PushVec3(localUniformBuffer, light.position);
+    }
+    globalParamsSize = localUniformBuffer.head - globalParamsOffset;
+
+    //Entities
+    u32 iteration = 0;
     for (auto it = entities.begin(); it != entities.end(); ++it)
     {
         glm::mat4 world = TransformPositionScale(vec3(0.0f + (1 * iteration), 2.0f, 0.0f), vec3(0.45f));
