@@ -257,7 +257,7 @@ void Init(App* app)
     app->entities.push_back({ TransformPositionScale(vec3(0.0, 1.0, 5.0), vec3(1.0, 1.0, 1.0)), PatrickModelIndex, 0, 0 });
     app->entities.push_back({ TransformPositionScale(vec3(-5.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0)), PatrickModelIndex, 0, 0 });
 
-    app->entities.push_back({ TransformPositionScale(vec3(0.0, -5.0, 0.0), vec3(1.0, 1.0, 1.0)), GroundModelIndex, 0, 0 });
+    app->entities.push_back({ TransformPositionScale(vec3(0.0, -5.0, 0.0), vec3(10.0, 10.0, 10.0)), GroundModelIndex, 0, 0 });
 
     app->lights.push_back({ LightType::LightType_Directional, vec3(1.0, 1.0, 1.0), vec3(1.0, -1.0, 1.0), vec3(0.0, 0.0, 0.0) });
     app->lights.push_back({ LightType::LightType_Point, vec3(0.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0), vec3(0.0, 0.0, 0.0) });
@@ -287,7 +287,7 @@ void Gui(App* app)
         ImGui::EndCombo();
     }
 
-    if (app->mode == Mode::Mode_Deferred)
+    /*if (app->mode == Mode::Mode_Deferred)
     {
         for (size_t i = 0; i < ARRAY_COUNT(RenderModes); ++i)
         {
@@ -297,7 +297,7 @@ void Gui(App* app)
                 app->mode = static_cast<Mode>(i);
             }
         }
-    }
+    }*/
 
     for (size_t i = 0; i < app->defferedFrameBuffer.colorAttachment.size(); ++i) 
     {
