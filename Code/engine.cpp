@@ -264,6 +264,8 @@ void Init(App* app)
     app->ConfigureFrameBuffer(app->defferedFrameBuffer);
 
     app->mode = Mode_Deferred;
+
+    app->cam.Init(app->displaySize);
 }
 
 void Gui(App* app)
@@ -300,6 +302,7 @@ void Gui(App* app)
 void Update(App* app)
 {
     // You can handle app->input keyboard/mouse here
+    app->cam.Rotate();
 }
 
 void Render(App* app)
@@ -311,7 +314,8 @@ void Render(App* app)
                 app->UpdateEntityBuffer();
 
                 glBindFramebuffer(GL_FRAMEBUFFER, 0);
-                glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+                glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+                //glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                 glViewport(0, 0, app->displaySize.x, app->displaySize.y);
@@ -383,23 +387,23 @@ void Render(App* app)
 
 void App::UpdateEntityBuffer()
 {
-    float aspectRatio = (float)displaySize.x / (float)displaySize.y;
-    float znear = 0.1f;
-    float zfar = 1000.0f;
-    glm::mat4 projection = glm::perspective(glm::radians(60.0f), aspectRatio, znear, zfar);
+    //float aspectRatio = (float)displaySize.x / (float)displaySize.y;
+    //float znear = 0.1f;
+    //float zfar = 1000.0f;
+    //glm::mat4 projection = glm::perspective(glm::radians(60.0f), aspectRatio, znear, zfar);
 
-    vec3 target = vec3(0.0f, 0.0f, 0.0f);
-    vec3 cameraPosition = vec3(5.0f, 5.0f, 5.0f);
+    //vec3 target = vec3(0.0f, 0.0f, 0.0f);
+    //vec3 cameraPosition = vec3(5.0f, 5.0f, 5.0f);
 
-    vec3 zCam = glm::normalize(cameraPosition - target);
-    vec3 xCam = glm::cross(zCam, vec3(0.0f, 1.0f, 0.0f));
-    vec3 yCam = glm::cross(xCam, zCam);
+    //vec3 zCam = glm::normalize(cameraPosition - target);
+    //vec3 xCam = glm::cross(zCam, vec3(0.0f, 1.0f, 0.0f));
+    //vec3 yCam = glm::cross(xCam, zCam);
 
-    glm::mat4 view = glm::lookAt(cameraPosition, target, yCam);
+    //glm::mat4 view = glm::lookAt(cameraPosition, target, yCam);
 
     BufferManager::MapBuffer(localUniformBuffer, GL_WRITE_ONLY);
 
-    PushVec3(localUniformBuffer, cameraPosition);
+    PushVec3(localUniformBuffer, cam.position);
     PushUInt(localUniformBuffer, lights.size());
 
     //Light
@@ -420,13 +424,13 @@ void App::UpdateEntityBuffer()
     for (auto it = entities.begin(); it != entities.end(); ++it)
     {
         glm::mat4 world = TransformPositionScale(vec3(0.0f + (1 * iteration), 2.0f, 0.0f), vec3(0.45f));
-        glm::mat4 WVP = projection * view * world;
+        //glm::mat4 WVP = projection * view * world;
 
         Buffer& localBuffer = localUniformBuffer;
         BufferManager::AlignHead(localBuffer, uniformBlockAlignment);
         it->localParamsOffset = localBuffer.head;
         PushMat4(localBuffer, world);
-        PushMat4(localBuffer, WVP);
+        PushMat4(localBuffer, cam.GetWVP(world));
         it->localParamsSize = localBuffer.head - it->localParamsOffset;
 
         ++iteration;
@@ -520,4 +524,35 @@ const GLuint App::CreateTexture(const bool isFloatingPoint)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
     return texturehandle;
+}
+
+void Camera::Init(ivec2 displaySize)
+{
+    aspectRatio = (float)displaySize.x / (float)displaySize.y;
+    projection = glm::perspective(glm::radians(60.0f), aspectRatio, zNear, zFar);
+
+    //position = vec3(5.0f, 5.0f, 5.0f);
+    //target = vec3(0.0f, 0.0f, 0.0f);
+
+
+    direction = glm::normalize(position - target);
+    zCam = glm::normalize(position - target);
+    xCam = glm::cross(zCam, vec3(0.0f, 1.0f, 0.0f));
+    yCam = glm::cross(xCam, zCam);
+
+    view = glm::lookAt(position, target, yCam);
+}
+
+void Camera::Rotate()
+{
+    //const float radius = 10.0f;
+    camX = sin(glfwGetTime()) * radius;
+    camZ = cos(glfwGetTime()) * radius;
+
+    view = glm::lookAt(glm::vec3(camX, 0.0, camZ), glm::vec3(0.0, 0.0, 0.0), glm::vec3(0.0, 1.0, 0.0));
+}
+
+glm::mat4 Camera::GetWVP(glm::mat4 world)
+{
+    return projection * view * world;
 }

@@ -22,6 +22,34 @@ const u16 indices[] =
     0,2,3
 };
 
+struct Camera
+{
+    float aspectRatio;
+    float zNear = 0.1f;
+    float zFar = 1000.0f;
+    glm::mat4 projection;
+
+    vec3 position = vec3(5.0f, 5.0f, 5.0f);
+    vec3 target = vec3(0.0f, 0.0f, 0.0f);
+    vec3 direction;
+
+    vec3 zCam;
+    vec3 xCam;
+    vec3 yCam;
+
+    glm::mat4 view;
+
+    const float radius = 10.0f;
+    float camX;
+    float camZ;
+
+    void Init(ivec2 displaySize);
+
+    void Rotate();
+
+    glm::mat4 GetWVP(glm::mat4 world);
+};
+
 struct App
 {
     void UpdateEntityBuffer();
@@ -38,6 +66,9 @@ struct App
 
     // Input
     Input input;
+
+    //Camera
+    Camera cam;
 
     // Graphics
     char gpuName[64];
