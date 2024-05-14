@@ -301,8 +301,39 @@ void Gui(App* app)
 
 void Update(App* app)
 {
-    // You can handle app->input keyboard/mouse here
-    app->cam.Rotate();
+    // CAMERA MOVEMENT
+    float cameraSpeed = 2.5f * app->deltaTime;
+    if (app->input.keys[K_W] == BUTTON_PRESSED)
+    {
+        app->cam.position += cameraSpeed * app->cam.front;
+    }
+    if (app->input.keys[K_S] == BUTTON_PRESSED)
+    {
+        app->cam.position -= cameraSpeed * app->cam.front;
+    }
+    if (app->input.keys[K_A] == BUTTON_PRESSED)
+    {
+        app->cam.position -= glm::normalize(glm::cross(app->cam.front, app->cam.up)) * cameraSpeed;
+    }
+    if (app->input.keys[K_D] == BUTTON_PRESSED)
+    {
+        app->cam.position += glm::normalize(glm::cross(app->cam.front, app->cam.up)) * cameraSpeed;
+    }
+
+    //CAMERA LOOK AROUND
+
+    if (app->input.mouseButtons[RIGHT] == BUTTON_PRESSED)
+    {
+        app->cam.LookAround(app->input.mousePos.x, app->input.mousePos.y);
+    }
+    else
+    {
+        app->cam.lastX = app->input.mousePos.x;
+        app->cam.lastY = app->input.mousePos.y;
+    }
+    
+    // Apply
+    app->cam.Move();
 }
 
 void Render(App* app)
@@ -531,25 +562,40 @@ void Camera::Init(ivec2 displaySize)
     aspectRatio = (float)displaySize.x / (float)displaySize.y;
     projection = glm::perspective(glm::radians(60.0f), aspectRatio, zNear, zFar);
 
-    //position = vec3(5.0f, 5.0f, 5.0f);
-    //target = vec3(0.0f, 0.0f, 0.0f);
-
+    front = glm::vec3(0.0f, 0.0f, -1.0f);
+    up = glm::vec3(0.0f, 1.0f, 0.0f);
 
     direction = glm::normalize(position - target);
-    zCam = glm::normalize(position - target);
-    xCam = glm::cross(zCam, vec3(0.0f, 1.0f, 0.0f));
-    yCam = glm::cross(xCam, zCam);
-
-    view = glm::lookAt(position, target, yCam);
 }
 
-void Camera::Rotate()
+void Camera::Move()
 {
-    //const float radius = 10.0f;
-    camX = sin(glfwGetTime()) * radius;
-    camZ = cos(glfwGetTime()) * radius;
+    view = glm::lookAt(position, position + front, up);
+}
 
-    view = glm::lookAt(glm::vec3(camX, 0.0, camZ), glm::vec3(0.0, 0.0, 0.0), glm::vec3(0.0, 1.0, 0.0));
+void Camera::LookAround(float mouseX, float mouseY)
+{
+    float xoffset = mouseX - lastX;
+    float yoffset = lastY - mouseY;
+    lastX = mouseX;
+    lastY = mouseY;
+
+    float sensitivity = 0.1f;
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
+
+    yaw += xoffset;
+    pitch += yoffset;
+
+    if (pitch > 89.0f)
+        pitch = 89.0f;
+    if (pitch < -89.0f)
+        pitch = -89.0f;      
+
+    direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+    direction.y = sin(glm::radians(pitch));
+    direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+    front = glm::normalize(direction);
 }
 
 glm::mat4 Camera::GetWVP(glm::mat4 world)

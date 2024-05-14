@@ -33,19 +33,22 @@ struct Camera
     vec3 target = vec3(0.0f, 0.0f, 0.0f);
     vec3 direction;
 
-    vec3 zCam;
-    vec3 xCam;
-    vec3 yCam;
-
     glm::mat4 view;
 
-    const float radius = 10.0f;
-    float camX;
-    float camZ;
+    float lastX = 400;
+    float lastY = 300;
+
+    float yaw = -90.0;
+    float pitch = 0.0f;
+
+    glm::vec3 front;
+    glm::vec3 up;
 
     void Init(ivec2 displaySize);
 
-    void Rotate();
+    void Move();
+
+    void LookAround(float xoffset, float yoffset);
 
     glm::mat4 GetWVP(glm::mat4 world);
 };
