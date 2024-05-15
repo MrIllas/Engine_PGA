@@ -252,7 +252,7 @@ void Init(App* app)
     u32 GroundModelIndex = ModelLoader::LoadModel(app, "./ground.obj");
     u32 GoombaModelIndex = ModelLoader::LoadModel(app, "Goomba/goomba.obj");
     app->SphereModelIndex = ModelLoader::LoadModel(app, "./sphere.obj");
-    //u32 ChestModelIndex = ModelLoader::LoadModel(app, "Chest/Chest.obj");
+    u32 ChestModelIndex = ModelLoader::LoadModel(app, "Chest/Chest.obj");
 
     VertexBufferLayout vertexBufferLayout = {};
     vertexBufferLayout.attributes.push_back(VertexBufferAttribute{ 0, 3, 0 });
@@ -275,12 +275,7 @@ void Init(App* app)
 
     app->entities.push_back({ vec3(2.5, -1, 2.5), vec3(0.03), GoombaModelIndex, 0, 0 });
 
-    //app->entities.push_back({ vec3(-2.5, -1.5, 2.5), vec3(2), ChestModelIndex, 0, 0 });
-
-   // app->entities.push_back({ vec3(0.0, 0.0, 0.0), vec3(0.45), app->SphereModelIndex, 0, 0 });
-
-   // app->lights.push_back({ LightType::LightType_Directional, vec3(1.0, 1.0, 1.0), vec3(1.0, -1.0, 1.0), vec3(0.0, 0.0, 0.0) });
-    //app->lights.push_back({ LightType::LightType_Point, vec3(0.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0), vec3(0.0, 0.0, 0.0) });
+    app->entities.push_back({ vec3(-2.5, -1.5, 2.5), vec3(2), ChestModelIndex, 0, 0 });
 
     CreateLight(app, { LightType::LightType_Directional, vec3(1.0, 1.0, 1.0), vec3(1.0, 1.0, -1.0), vec3(0.0, 0.0, 0.0) });
     CreateLight(app, { LightType::LightType_Directional, vec3(1.0, 0.0, 1.0), vec3(-1.0, 1.0, -1.0), vec3(0.0, 0.0, 0.0) });
@@ -301,7 +296,7 @@ void Gui(App* app)
     ImGui::Text("FPS: %f", 1.0f / app->deltaTime);
     ImGui::Text("%s", app->openglDebugInfo.c_str());
 
-    const char* RenderModes[] = {"FORWARD", "DEFERRED"};
+    const char* RenderModes[] = {"FORWARD", "DEFERRED", "ALBEDO", "NORMALS", "POSITION", "VIEW DIRECTION", "DEPTH"};
     if (ImGui::BeginCombo("Render Mode", RenderModes[app->mode]))
     {
         for (size_t i = 0; i < ARRAY_COUNT(RenderModes); ++i)
@@ -315,12 +310,15 @@ void Gui(App* app)
         ImGui::EndCombo();
     }
 
-    if (app->mode == Mode::Mode_Deferred)
+    if (app->mode != Mode::Mode_Forward)
     {
+        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "G-Buffer textures");
         for (size_t i = 0; i < app->defferedFrameBuffer.colorAttachment.size(); ++i)
         {
             ImGui::Image((ImTextureID)app->defferedFrameBuffer.colorAttachment[i], ImVec2(320, 180), ImVec2(0, 1), ImVec2(1, 0));
         }
+
+        ImGui::Image((ImTextureID)app->defferedFrameBuffer.depthHandle, ImVec2(320, 180), ImVec2(0, 1), ImVec2(1, 0));
     }
 
     ImGui::End();
@@ -422,12 +420,12 @@ void Update(App* app)
 
 void Render(App* app)
 {
+    app->UpdateEntityBuffer();
+
     switch (app->mode)
     {
         case  Mode_Forward:
             {
-                app->UpdateEntityBuffer();
-
                 glBindFramebuffer(GL_FRAMEBUFFER, 0);
                 glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
                 //glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -443,10 +441,13 @@ void Render(App* app)
                 //BufferManager::UnmapBuffer(app->localUnfiromBuffer);
             }
             break;
+        case  Mode_Albedo:
         case  Mode_Deferred:
+        case  Mode_Normals:
+        case  Mode_Position:
+        case  Mode_Depth:
+        case  Mode_ViewDirection:
             {
-                app->UpdateEntityBuffer();
-
                 //Render to FB ColorAtt.
                 glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -487,6 +488,16 @@ void Render(App* app)
                 glActiveTexture(GL_TEXTURE3);
                 glBindTexture(GL_TEXTURE_2D, app->defferedFrameBuffer.colorAttachment[3]);
                 glUniform1i(glGetUniformLocation(FBToBB.handle, "uViewDir"), 3);
+
+                glActiveTexture(GL_TEXTURE4);
+                glBindTexture(GL_TEXTURE_2D, app->defferedFrameBuffer.depthHandle);
+                glUniform1i(glGetUniformLocation(FBToBB.handle, "uDepth"), 4);
+
+                glUniform1i(glGetUniformLocation(FBToBB.handle, "showAlbedo"), app->mode == Mode_Albedo ? 1 : 0);
+                glUniform1i(glGetUniformLocation(FBToBB.handle, "showNormals"), app->mode == Mode_Normals ? 1 : 0);
+                glUniform1i(glGetUniformLocation(FBToBB.handle, "showPosition"), app->mode == Mode_Position ? 1 : 0);
+                glUniform1i(glGetUniformLocation(FBToBB.handle, "showViewDir"), app->mode == Mode_ViewDirection ? 1 : 0);
+                glUniform1i(glGetUniformLocation(FBToBB.handle, "showDepth"), app->mode == Mode_Depth ? 1 : 0);
 
                 glBindVertexArray(app->vao);
                 glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);

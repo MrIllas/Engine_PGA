@@ -53,6 +53,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="WorkingDir\base_model.glsl" />
+    <None Include="WorkingDir\FB_TO_BB.glsl" />
     <None Include="WorkingDir\FB_TO_QUAD.glsl" />
     <None Include="WorkingDir\RENDER_TO_BB.glsl" />
     <None Include="WorkingDir\RENDER_TO_FB.glsl" />

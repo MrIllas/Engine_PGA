@@ -39,6 +39,13 @@ uniform sampler2D uAlbedo;
 uniform sampler2D uNormals;
 uniform sampler2D uPosition;
 uniform sampler2D uViewDir;
+uniform sampler2D uDepth;
+
+uniform bool showAlbedo;
+uniform bool showNormals;
+uniform bool showPosition;
+uniform bool showViewDir;
+uniform bool showDepth;
 
 layout(location = 0) out vec4 oColor;
 
@@ -98,8 +105,31 @@ void main()
 		}
 	}
 
-	//oColor = texture(uPosition, vTexCoord);
-	oColor = finalColor;
+
+	if (showAlbedo)
+	{
+		oColor = texture(uAlbedo, vTexCoord);
+	}
+	else if (showNormals)
+	{
+		oColor = texture(uNormals, vTexCoord);
+	}
+	else if (showPosition)
+	{
+		oColor = texture(uPosition, vTexCoord);
+	}
+	else if (showViewDir)
+	{
+		oColor = texture(uViewDir, vTexCoord);
+	}
+	else if (showDepth)
+	{
+		oColor = vec4(texture(uDepth, vTexCoord));
+	}
+	else
+	{
+		oColor = finalColor;
+	}
 }
 
 #endif
