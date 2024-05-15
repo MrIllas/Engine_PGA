@@ -193,6 +193,18 @@ glm::mat4 TranformScale(const vec3& scaleFactors)
     return glm::scale(scaleFactors);
 }
 
+void CreateLight(App* app, Light light)
+{
+    app->lights.push_back(light);
+
+    //If point light, create and relate a light
+    if (light.type == LightType_Point)
+    {
+        app->entities.push_back({ light.position, vec3(0.1), app->SphereModelIndex, 0, 0 });
+        app->lights[app->lights.size() - 1].sphere = app->entities.size() - 1;
+    }
+}
+
 void Init(App* app)
 {
     // TODO: Initialize your resources here!
@@ -238,6 +250,9 @@ void Init(App* app)
     app->texturedMeshProgram_uTexture = glGetUniformLocation(texturedMeshProgram.handle, "uTexture");
     u32 PatrickModelIndex = ModelLoader::LoadModel(app, "Patrick/Patrick.obj");
     u32 GroundModelIndex = ModelLoader::LoadModel(app, "./ground.obj");
+    u32 GoombaModelIndex = ModelLoader::LoadModel(app, "Goomba/goomba.obj");
+    app->SphereModelIndex = ModelLoader::LoadModel(app, "./sphere.obj");
+    //u32 ChestModelIndex = ModelLoader::LoadModel(app, "Chest/Chest.obj");
 
     VertexBufferLayout vertexBufferLayout = {};
     vertexBufferLayout.attributes.push_back(VertexBufferAttribute{ 0, 3, 0 });
@@ -252,14 +267,26 @@ void Init(App* app)
 
     app->localUniformBuffer = CreateConstantBuffer(app->maxUniformBufferSize);
 
-    app->entities.push_back({ TransformPositionScale(vec3(5.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0)), PatrickModelIndex, 0, 0});
-    app->entities.push_back({ TransformPositionScale(vec3(0.0, 1.0, 5.0), vec3(1.0, 1.0, 1.0)), PatrickModelIndex, 0, 0 });
-    app->entities.push_back({ TransformPositionScale(vec3(-5.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0)), PatrickModelIndex, 0, 0 });
+    app->entities.push_back({ vec3(0.0, 0.0, 0.0), vec3(0.45), PatrickModelIndex, 0, 0});
+    app->entities.push_back({ vec3(2.35, 0.0, 0.0), vec3(0.45), PatrickModelIndex, 0, 0 });
+    app->entities.push_back({ vec3(-2.35, 0.0, 0.0), vec3(0.45), PatrickModelIndex, 0, 0 });
 
-    app->entities.push_back({ TransformPositionScale(vec3(0.0, -5.0, 0.0), vec3(10.0, 10.0, 10.0)), GroundModelIndex, 0, 0 });
+    app->entities.push_back({ vec3(0, -1.55, 0.0), vec3(5, 5, 5), GroundModelIndex, 0, 0 });
 
-    app->lights.push_back({ LightType::LightType_Directional, vec3(1.0, 1.0, 1.0), vec3(1.0, -1.0, 1.0), vec3(0.0, 0.0, 0.0) });
-    app->lights.push_back({ LightType::LightType_Point, vec3(0.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0), vec3(0.0, 0.0, 0.0) });
+    app->entities.push_back({ vec3(2.5, -1, 2.5), vec3(0.03), GoombaModelIndex, 0, 0 });
+
+    //app->entities.push_back({ vec3(-2.5, -1.5, 2.5), vec3(2), ChestModelIndex, 0, 0 });
+
+   // app->entities.push_back({ vec3(0.0, 0.0, 0.0), vec3(0.45), app->SphereModelIndex, 0, 0 });
+
+   // app->lights.push_back({ LightType::LightType_Directional, vec3(1.0, 1.0, 1.0), vec3(1.0, -1.0, 1.0), vec3(0.0, 0.0, 0.0) });
+    //app->lights.push_back({ LightType::LightType_Point, vec3(0.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0), vec3(0.0, 0.0, 0.0) });
+
+    CreateLight(app, { LightType::LightType_Directional, vec3(1.0, 1.0, 1.0), vec3(1.0, 1.0, -1.0), vec3(0.0, 0.0, 0.0) });
+    CreateLight(app, { LightType::LightType_Directional, vec3(1.0, 0.0, 1.0), vec3(-1.0, 1.0, -1.0), vec3(0.0, 0.0, 0.0) });
+    CreateLight(app, { LightType::LightType_Point, vec3(1.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0), vec3(0.0, 3.0, 0.0) });
+    CreateLight(app, { LightType::LightType_Point, vec3(0.0, 1.0, 0.0), vec3(1.0, 1.0, 1.0), vec3(6.0, 0.0, 4.0) });
+    CreateLight(app, { LightType::LightType_Point, vec3(0.0, 0.0, 1.0), vec3(1.0, 1.0, 1.0), vec3(-6.0, 0.0, -1.0) });
 
     app->ConfigureFrameBuffer(app->defferedFrameBuffer);
 
@@ -293,6 +320,63 @@ void Gui(App* app)
         for (size_t i = 0; i < app->defferedFrameBuffer.colorAttachment.size(); ++i)
         {
             ImGui::Image((ImTextureID)app->defferedFrameBuffer.colorAttachment[i], ImVec2(320, 180), ImVec2(0, 1), ImVec2(1, 0));
+        }
+    }
+
+    ImGui::End();
+
+    // LIGHTS
+
+    static int auxIndex = -1;
+    static std::string auxSelectedName = "";
+    std::string name = "";
+
+    ImGui::Begin("Lights");
+
+    ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Click Lights to modify them.");
+    ImGui::Dummy(ImVec2(10, 10));
+    for (int i = 0; i < app->lights.size(); ++i)
+    {
+        if (app->lights[i].type == LightType_Directional)
+        {
+            name = "Directional Light ";
+        }
+        else
+        {
+            name = "Point Light ";
+        }
+        name += std::to_string(i);
+
+        if (ImGui::Selectable(name.c_str(), &app->lights[i].selected))
+        {
+            auxIndex = i;
+            auxSelectedName = name + " is selected!";
+        }
+    }
+
+    ImGui::Dummy(ImVec2(10, 10));
+    if (auxIndex > -1)
+    {
+        if (app->lights[auxIndex].selected)
+        {
+            //Deselect others
+            for (int k = 0; k < app->lights.size(); k++) {
+                app->lights[k].selected = (k == auxIndex);
+            }
+            
+            //Modify
+            ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), auxSelectedName.c_str());
+            ImGui::Spacing();
+
+            if (ImGui::DragFloat3("Position", &app->lights[auxIndex].position.x))
+            {
+                if (app->lights[auxIndex].sphere != -1)
+                {
+                    app->entities[app->lights[auxIndex].sphere].position = app->lights[auxIndex].position;
+                }
+            }
+            ImGui::DragFloat3("Direction", &app->lights[auxIndex].direction.x);
+            ImGui::ColorPicker3("Color", &app->lights[auxIndex].color.x);
         }
     }
 
@@ -454,7 +538,7 @@ void App::UpdateEntityBuffer()
     u32 iteration = 0;
     for (auto it = entities.begin(); it != entities.end(); ++it)
     {
-        glm::mat4 world = TransformPositionScale(vec3(0.0f + (1 * iteration), 2.0f, 0.0f), vec3(0.45f));
+        glm::mat4 world = TransformPositionScale(it->position, it->scale);
         //glm::mat4 WVP = projection * view * world;
 
         Buffer& localBuffer = localUniformBuffer;
@@ -564,8 +648,6 @@ void Camera::Init(ivec2 displaySize)
 
     front = glm::vec3(0.0f, 0.0f, -1.0f);
     up = glm::vec3(0.0f, 1.0f, 0.0f);
-
-    direction = glm::normalize(position - target);
 }
 
 void Camera::Move()

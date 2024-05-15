@@ -29,8 +29,7 @@ struct Camera
     float zFar = 1000.0f;
     glm::mat4 projection;
 
-    vec3 position = vec3(5.0f, 5.0f, 5.0f);
-    vec3 target = vec3(0.0f, 0.0f, 0.0f);
+    vec3 position = vec3(0.0f, 1.0f, 10.0f);
     vec3 direction;
 
     glm::mat4 view;
@@ -99,6 +98,9 @@ struct App
     u32 blackTexIdx;
     u32 normalTexIdx;
     u32 magentaTexIdx;
+
+    // Models
+    u32 SphereModelIndex;
 
     // Mode
     Mode mode;

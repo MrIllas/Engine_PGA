@@ -177,7 +177,8 @@ struct Buffer {
 
 struct Entity
 {
-    glm::mat4 worldMatrix;
+    vec3 position;
+    vec3 scale;
     u32 modelIndex;
     u32 localParamsOffset;
     u32 localParamsSize;
@@ -195,6 +196,8 @@ struct Light
     vec3 color;
     vec3 direction;
     vec3 position;
+    bool selected;
+    int sphere = -1;
 };
 
 struct FrameBuffer
